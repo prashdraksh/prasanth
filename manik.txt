@@ -1,0 +1,87 @@
+# models.py
+from django.db import models
+
+class Item(models.Model):
+    name = models.CharField(max_length=100)
+    category = models.CharField(max_length=100)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def _str_(self):
+        return self.name
+
+# serializers.py
+from rest_framework import serializers
+from .models import Item
+
+class ItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Item
+        fields = '_all_'
+
+# urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('inventory/items/', views.add_item),
+    path('inventory/items/<int:pk>/', views.delete_item),
+    path('inventory/items/edit/<int:pk>/', views.edit_item),
+    path('inventory/items/', views.get_all_items),
+    path('inventory/items/query/<str:category>/', views.get_items_by_category),
+    path('inventory/items/sort/', views.sort_items_by_price),
+]
+
+
+# views.py
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .models import Item
+from .serializers import ItemSerializer
+
+@api_view(['POST'])
+def add_item(request):
+    serializer = ItemSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['DELETE'])
+def delete_item(request, pk):
+    try:
+        item = Item.objects.get(pk=pk)
+        item.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    except Item.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['PUT'])
+def edit_item(request, pk):
+    try:
+        item = Item.objects.get(pk=pk)
+        serializer = ItemSerializer(instance=item, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Item.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+def get_all_items(request):
+    items = Item.objects.all()
+    serializer = ItemSerializer(items, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_items_by_category(request, category):
+    items = Item.objects.filter(category=category)
+    serializer = ItemSerializer(items, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def sort_items_by_price(request):
+    items = Item.objects.order_by('-price')
+    serializer = ItemSerializer(items, many=True)
+    return Response(serializer.data)
